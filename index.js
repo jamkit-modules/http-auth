@@ -4,13 +4,16 @@ HttpHelper = (function() {
     };
 })();
 
-HttpHelper.request = function(host, username, password, method, path, headers) {
+HttpHelper.request = function(host, method, path, options) {
     return new Promise(function(resolve, reject) {
+        var headers = (options || {})["headers"] || [];
+
         fetch(host + path, {
-            "method":method
+            "method":method,
+            "headers":headers
         }).then(function(response) {
             if (response.status === 401) {
-                HttpHelper.__authenticate(response, username, password, method, path).then(function(authorization) {
+                HttpHelper.__authenticate(response, method, path, (options || {})).then(function(authorization) {
                     fetch(host + path, {
                         "method":method,
                         "headers":Object.assign(headers, { "Authorization":authorization })
@@ -31,13 +34,16 @@ HttpHelper.request = function(host, username, password, method, path, headers) {
     });
 }
 
-HttpHelper.authorize = function(host, username, password, method, path) {
+HttpHelper.authorize = function(host, method, path, options) {
     return new Promise(function(resolve, reject) {
+        var headers = (options || {})["headers"] || [];
+
         fetch(host + path, {
-            "method":method
+            "method":method,
+            "headers":headers
         }).then(function(response) {
             if (response.status === 401) {
-                HttpHelper.__authenticate(response, username, password, method, path).then(function(authorization) {
+                HttpHelper.__authenticate(response, method, path, (options || {})).then(function(authorization) {
                     resolve(authorization)
                 }, function() {
                     reject()
@@ -53,19 +59,19 @@ HttpHelper.authorize = function(host, username, password, method, path) {
     });
 }
 
-HttpHelper.__authenticate = function(response, username, password, method, path) {
+HttpHelper.__authenticate = function(response, method, path, options) {
     return new Promise(function(resolve, reject) {
         var params = HttpHelper.__params_for_authenticate(response);
 
         if (params && params.length == 2) {
             if (params[0].toLowerCase() === "basic") {
-                HttpHelper.__basic_authenticate(username, password, params[1]).then(function() {
-
+                HttpHelper.__basic_authenticate(params[1], method, path, options).then(function(authorization) {
+                    resolve(authorization)
                 }, function() {
                     reject();
                 })
             } else if (params[0].toLowerCase() === "digest") {
-                HttpHelper.__digest_authenticate(username, password, method, path, params[1]).then(function(authorization) {
+                HttpHelper.__digest_authenticate(params[1], method, path, options).then(function(authorization) {
                     resolve(authorization)
                 }, function() {
                     reject();
@@ -79,15 +85,15 @@ HttpHelper.__authenticate = function(response, username, password, method, path)
     });
 }
 
-HttpHelper.__basic_authenticate = function(username, password, params) {
+HttpHelper.__basic_authenticate = function(params, method, path, options) {
     return new Promise(function(resolve, reject) {
 
     })
 }
 
-HttpHelper.__digest_authenticate = function(username, password, method, path, params) {
+HttpHelper.__digest_authenticate = function(params, method, path, options) {
     return new Promise(function(resolve, reject) {
-        var ha1 = encode("hex", hash("md5", [ username, params["realm"], password].join(":")));
+        var ha1 = encode("hex", hash("md5", [ options["username"], params["realm"], options["password"]].join(":")));
         var ha2 = encode("hex", hash("md5", [ method, path].join(":")))
         var cnonce = encode("hex", random(16))
         var nc = (HttpHelper.__nonce_counts[params["nonce"]] || 0) + 1
@@ -97,7 +103,7 @@ HttpHelper.__digest_authenticate = function(username, password, method, path, pa
 
         resolve([
             "Digest",
-            "username=\"" + username + "\",",
+            "username=\"" + options["username"] + "\",",
             "realm=\"" + params["realm"] + "\",",
             "nonce=\"" + params["nonce"] + "\",",
             "uri=\"" + path + "\",",

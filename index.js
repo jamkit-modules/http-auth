@@ -35,7 +35,7 @@ var module = (function() {
         });
     }
     
-    digest_authenticate(params, method, path, options) {
+    function _digest_authenticate(params, method, path, options) {
         return new Promise(function(resolve, reject) {
             var ha1 = encode("hex", hash("md5", [ options["username"], params["realm"], options["password"]].join(":")));
             var ha2 = encode("hex", hash("md5", [ method, path].join(":")))
@@ -88,33 +88,32 @@ var module = (function() {
         request: function(host, method, path, options) {
             return new Promise(function(resolve, reject) {
                 var headers = (options || {})["headers"] || [];
-                var self = this;
-        
+                
                 fetch(host + path, {
-                    "method":method,
-                    "headers":headers
+                    "method": method,
+                    "headers": headers
                 })
                     .then(function(response) {
                         if (response.status === 401) {
                             _authenticate(response, method, path, (options || {}))
                                 .then(function(authorization) {
-                                    fetch(host + path, {
-                                        "method":method,
-                                        "headers":Object.assign(headers, { "Authorization":authorization })
-                                    })
-                                        .then(function(response) {
-                                            resolve(response);
-                                        }, function() {
-                                            reject();
-                                        });
-                                }, function() {
-                                    reject();
+                                    return fetch(host + path, {
+                                        "method": method,
+                                        "headers": Object.assign(headers, { "Authorization": authorization })
+                                    });
+                                })
+                                .then(function(response) {
+                                    resolve(response);
+                                })
+                                .catch(function(error) {
+                                    reject(error);
                                 });
                         } else {
                             resolve(response);
                         }
-                    }, function() {
-                        reject();
+                    })
+                    .catch(function(error) {
+                        reject(error);
                     });
             });
         },
@@ -122,29 +121,26 @@ var module = (function() {
         authorize: function(host, method, path, options) {
             return new Promise(function(resolve, reject) {
                 var headers = (options || {})["headers"] || [];
-                var self = this;
-        
+
                 fetch(host + path, {
-                    "method":method,
-                    "headers":headers
+                    "method": method,
+                    "headers": headers
                 })
                     .then(function(response) {
                         if (response.status === 401) {
                             _authenticate(response, method, path, (options || {}))
                                 .then(function(authorization) {
                                     resolve(authorization);
-                                }, function() {
-                                    reject();
+                                })
+                                .catch(function(error) {
+                                    reject(error);
                                 });
                         } else {
-                            if (response.ok) {
-                                resolve();
-                            } else {
-                                reject();
-                            }
+                            resolve();
                         }
-                    }, function() {
-                        reject();
+                    })
+                    .catch(function(error) {
+                        reject(error);
                     });
             });
         },              

@@ -2,37 +2,25 @@ const module = (function() {
     const _nonce_counts = {}
 
     function _authenticate(response, method, path, options) {
-        return new Promise((resolve, reject) => {
-            const params = _params_for_authenticate(response);
+        const params = _params_for_authenticate(response);
     
-            if (params && params.length == 2) {
-                if (params[0].toLowerCase() === "basic") {
-                    _basic_authenticate(params[1], method, path, options)
-                        .then((authorization) => {
-                            resolve(authorization);
-                        }, (error) => {
-                            reject(error);
-                        });
-                } else if (params[0].toLowerCase() === "digest") {
-                    _digest_authenticate(params[1], method, path, options)
-                        .then((authorization) => {
-                            resolve(authorization);
-                        }, (error) => {
-                            reject(error);
-                        });
-                } else {
-                    reject();
-                }
-            } else {
-                reject();
+        if (params && params.length == 2) {
+            if (params[0].toLowerCase() === "basic") {
+                return _basic_authenticate(params[1], method, path, options);
             }
-        });
+            
+            if (params[0].toLowerCase() === "digest") {
+                return _digest_authenticate(params[1], method, path, options);
+            }
+
+            return Promise.reject();
+        }
+
+        return Promise.reject();
     }
     
     function _basic_authenticate(params, method, path, options) {
-        return new Promise((resolve, reject) => {
-    
-        });
+        return Promise.reject(); // TODO
     }
     
     function _digest_authenticate(params, method, path, options) {
@@ -86,63 +74,41 @@ const module = (function() {
     
     return {
         request: function(host, method, path, options={}) {
-            return new Promise(function(resolve, reject) {
-                const headers = options["headers"] || [];
+            const headers = options["headers"] || [];
                 
-                fetch(host + path, {
-                    "method": method,
-                    "headers": headers
-                })
-                    .then((response) => {
-                        if (response.status === 401) {
-                            _authenticate(response, method, path, options)
-                                .then((authorization) => {
-                                    return fetch(host + path, {
-                                        "method": method,
-                                        "headers": Object.assign(headers, { "Authorization": authorization })
-                                    });
-                                })
-                                .then((response) => {
-                                    resolve(response);
-                                })
-                                .catch((error) => {
-                                    reject(error);
+            return fetch(host + path, {
+                "method": method,
+                "headers": headers
+            })
+                .then((response) => {
+                    if (response.status === 401) {
+                        _authenticate(response, method, path, options)
+                            .then((authorization) => {
+                                return fetch(host + path, {
+                                    "method": method,
+                                    "headers": Object.assign(headers, { "Authorization": authorization })
                                 });
-                        } else {
-                            resolve(response);
-                        }
-                    })
-                    .catch(function(error) {
-                        reject(error);
-                    });
-            });
+                            });
+                    } else {
+                        return response;
+                    }
+                });
         },
         
         authorize: function(host, method, path, options={}) {
-            return new Promise((resolve, reject) => {
-                const headers = options["headers"] || [];
+            const headers = options["headers"] || [];
 
-                fetch(host + path, {
-                    "method": method,
-                    "headers": headers
-                })
-                    .then((response) => {
-                        if (response.status === 401) {
-                            _authenticate(response, method, path, options)
-                                .then((authorization) => {
-                                    resolve(authorization);
-                                })
-                                .catch((error) => {
-                                    reject(error);
-                                });
-                        } else {
-                            resolve();
-                        }
-                    })
-                    .catch((error) => {
-                        reject(error);
-                    });
-            });
+            return fetch(host + path, {
+                "method": method,
+                "headers": headers
+            })
+                .then((response) => {
+                    if (response.status === 401) {
+                        return _authenticate(response, method, path, options);
+                    } else {
+                        return Promise.resolve();
+                    }
+                });
         },
     }
 })();

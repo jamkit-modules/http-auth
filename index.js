@@ -52,7 +52,7 @@ const module = (function() {
             }
         }
     }
-    
+
     function _parse_www_authenticate(header) {
         const tokens = header.split(" ");
         const method = tokens[0], params = {};
@@ -68,14 +68,25 @@ const module = (function() {
         return [ method, params ];
     }
     
+    function _build_request_headers(options) {
+        const headers = options["headers"] || {};
+        const { authorization } = options;
+
+        if (authorization) {
+            headers["Authorization"] = authorization;
+        }
+
+        return headers;
+    }
+
     return {
         request: function(url, method, options={}) {
+            const headers = _build_request_headers(options);
+
             return fetch(url, {
                 "method": method,
                 "body": options["body"] || "",
-                "headers": Object.assign(options["headers"] || {}, { 
-                    "Authorization": options["authorization"] || ""
-                })
+                "headers": headers
             })
                 .then((response) => {
                     if (response.status === 401) {
@@ -87,7 +98,7 @@ const module = (function() {
                                 return fetch(url, {
                                     "method": method,
                                     "body": options["body"] || "",
-                                    "headers": Object.assign(options["headers"] || {}, { 
+                                    "headers": Object.assign(headers, { 
                                         "Authorization": authorization 
                                     })
                                 })

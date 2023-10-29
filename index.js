@@ -85,9 +85,9 @@ const module = (function() {
     }
     
     return {
-        request: function(host, method, path, options) {
+        request: function(host, method, path, options={}) {
             return new Promise(function(resolve, reject) {
-                const headers = (options || {})["headers"] || [];
+                const headers = options["headers"] || [];
                 
                 fetch(host + path, {
                     "method": method,
@@ -95,7 +95,7 @@ const module = (function() {
                 })
                     .then((response) => {
                         if (response.status === 401) {
-                            _authenticate(response, method, path, (options || {}))
+                            _authenticate(response, method, path, options)
                                 .then((authorization) => {
                                     return fetch(host + path, {
                                         "method": method,
@@ -118,9 +118,9 @@ const module = (function() {
             });
         },
         
-        authorize: function(host, method, path, options) {
+        authorize: function(host, method, path, options={}) {
             return new Promise((resolve, reject) => {
-                const headers = (options || {})["headers"] || [];
+                const headers = options["headers"] || [];
 
                 fetch(host + path, {
                     "method": method,
@@ -128,7 +128,7 @@ const module = (function() {
                 })
                     .then((response) => {
                         if (response.status === 401) {
-                            _authenticate(response, method, path, (options || {}))
+                            _authenticate(response, method, path, options)
                                 .then((authorization) => {
                                     resolve(authorization);
                                 })

@@ -1,32 +1,28 @@
 const module = (function() {
     const _nonce_counts = {}
 
-    function _authenticate(response, method, path, options) {
-        const params = _params_for_authenticate(response);
+    function _authenticate(method, path, credentials, headers) {
+        const [ method, params ] = _get_authenticate_options(headers);
     
-        if (params && params.length == 2) {
-            if (params[0].toLowerCase() === "basic") {
-                return _basic_authenticate(params[1], method, path, options);
-            }
-            
-            if (params[0].toLowerCase() === "digest") {
-                return _digest_authenticate(params[1], method, path, options);
-            }
-
-            return Promise.reject();
+        if (method.toLowerCase() === "basic") {
+            return _basic_authenticate(method, path, credentials, params);
+        }
+        
+        if (method.toLowerCase() === "digest") {
+            return _digest_authenticate(method, path, credentials, params);
         }
 
         return Promise.reject();
     }
-    
-    function _basic_authenticate(params, method, path, options) {
+
+    function _basic_authenticate(method, path, credentials, params) {
         return Promise.reject(); // TODO
     }
-    
-    function _digest_authenticate(params, method, path, options) {
+
+    function _digest_authenticate(method, path, credentials, params) {
         return new Promise((resolve, reject) => {
-            const ha1 = encode("hex", hash("md5", [ options["username"], params["realm"], options["password"]].join(":")));
-            const ha2 = encode("hex", hash("md5", [ method, path].join(":")));
+            const ha1 = encode("hex", hash("md5", [ credentials["username"], params["realm"], credentials["password"]].join(":")));
+            const ha2 = encode("hex", hash("md5", [ method, path ].join(":")));
             const cnonce = encode("hex", random(16));
             const nc = (_nonce_counts[params["nonce"]] || 0) + 1;
             const response = encode("hex", hash("md5", [
@@ -35,12 +31,12 @@ const module = (function() {
     
             resolve([
                 "Digest",
-                `username="${options["username"]}",`,
+                `username="${credentials["username"]}",`,
                 `realm="${params["realm"]}",`,
                 `nonce="${params["nonce"]}",`,
                 `uri="${path}",`,
                 `cnonce="${cnonce}",`,
-                `nc=${nc.toString()},`,
+                `nc=${nc},`,
                 `qop="${params["qop"]}",`,
                 `response="${response}"`
             ].join(" "));
@@ -49,10 +45,10 @@ const module = (function() {
         });
     }
     
-    function _params_for_authenticate(response) {
-        for (let key in response.headers) {
+    function _get_authenticate_options(headers) {
+        for (let key in headers) {
             if (key.toLowerCase() === "www-authenticate") {
-                return _parse_www_authenticate(response.headers[key]);
+                return _parse_www_authenticate(headers[key]);
             }
         }
     }
@@ -73,43 +69,39 @@ const module = (function() {
     }
     
     return {
-        request: function(host, method, path, options={}) {
-            const headers = options["headers"] || [];
-                
-            return fetch(host + path, {
+        request: function(url, method, options={}) {
+            return fetch(url, {
                 "method": method,
-                "headers": headers
+                "body": options["body"] || "",
+                "headers": Object.assign(options["headers"] || {}, { 
+                    "Authorization": options["authorization"] || ""
+                })
             })
                 .then((response) => {
                     if (response.status === 401) {
-                        _authenticate(response, method, path, options)
+                        const credentials = options["credentials"] || {};
+                        const { path } = parse("url", url);
+
+                        _authenticate(method, path, credentials, response.headers)
                             .then((authorization) => {
-                                return fetch(host + path, {
+                                return fetch(url, {
                                     "method": method,
-                                    "headers": Object.assign(headers, { "Authorization": authorization })
-                                });
+                                    "body": options["body"] || "",
+                                    "headers": Object.assign(options["headers"] || {}, { 
+                                        "Authorization": authorization 
+                                    })
+                                })
+                                    .then((response) => {
+                                        return Object.assign(response, {
+                                            "authorization": authorization
+                                        });
+                                    });
                             });
                     } else {
                         return response;
                     }
                 });
-        },
-        
-        authorize: function(host, method, path, options={}) {
-            const headers = options["headers"] || [];
-
-            return fetch(host + path, {
-                "method": method,
-                "headers": headers
-            })
-                .then((response) => {
-                    if (response.status === 401) {
-                        return _authenticate(response, method, path, options);
-                    } else {
-                        return Promise.resolve();
-                    }
-                });
-        },
+        }
     }
 })();
 

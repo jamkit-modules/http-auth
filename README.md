@@ -1,3 +1,3 @@
-# http-helper
+# http-auth
 
-An HTTP client module for Jamkit
+An HTTP authenticate module for Jamkit
